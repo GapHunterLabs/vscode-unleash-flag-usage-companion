@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { findFlagUsages, findNamingViolations, findLikelyTypoGroups, FlagUsage } from './flagInventory';
+import { recordHit } from './reviewPrompt';
 
 let diagnostics: vscode.DiagnosticCollection;
 let outputChannel: vscode.OutputChannel | undefined;
@@ -32,7 +33,7 @@ async function scanWorkspace(): Promise<{ usages: FlagUsage[]; uris: Map<string,
   return { usages, uris };
 }
 
-function refreshDiagnosticsFromUsages(usages: FlagUsage[], uris: Map<string, vscode.Uri>): void {
+function refreshDiagnosticsFromUsages(context: vscode.ExtensionContext, usages: FlagUsage[], uris: Map<string, vscode.Uri>): void {
   diagnostics.clear();
   const byFile = new Map<string, vscode.Diagnostic[]>();
 
@@ -47,6 +48,7 @@ function refreshDiagnosticsFromUsages(usages: FlagUsage[], uris: Map<string, vsc
       );
       diagnostic.source = 'Unleash Flag Usage Companion';
       diagnostic.code = 'NAMING';
+      recordHit(context, `${uris.get(usage.file)?.toString() ?? usage.file}:${usage.line}:NAMING:${violation.flagName}`);
       const list = byFile.get(usage.file) ?? [];
       list.push(diagnostic);
       byFile.set(usage.file, list);
@@ -66,6 +68,7 @@ function refreshDiagnosticsFromUsages(usages: FlagUsage[], uris: Map<string, vsc
         );
         diagnostic.source = 'Unleash Flag Usage Companion';
         diagnostic.code = 'LIKELY_TYPO';
+        recordHit(context, `${uris.get(usage.file)?.toString() ?? usage.file}:${usage.line}:TYPO:${usage.flagName}`);
         const list = byFile.get(usage.file) ?? [];
         list.push(diagnostic);
         byFile.set(usage.file, list);
@@ -105,9 +108,9 @@ function showInventory(usages: FlagUsage[]): void {
   channel.show(true);
 }
 
-async function runScanAndReport(): Promise<{ usages: FlagUsage[]; uris: Map<string, vscode.Uri> }> {
+async function runScanAndReport(context: vscode.ExtensionContext): Promise<{ usages: FlagUsage[]; uris: Map<string, vscode.Uri> }> {
   const { usages, uris } = await scanWorkspace();
-  refreshDiagnosticsFromUsages(usages, uris);
+  refreshDiagnosticsFromUsages(context, usages, uris);
   return { usages, uris };
 }
 
@@ -115,14 +118,14 @@ export function activate(context: vscode.ExtensionContext): void {
   diagnostics = vscode.languages.createDiagnosticCollection('unleashFlagUsageCompanion');
   context.subscriptions.push(diagnostics);
 
-  void runScanAndReport();
+  void runScanAndReport(context);
 
   context.subscriptions.push(
     vscode.workspace.onDidSaveTextDocument((doc) => {
-      if (isApplicable(doc)) void runScanAndReport();
+      if (isApplicable(doc)) void runScanAndReport(context);
     }),
     vscode.commands.registerCommand('unleashFlagUsageCompanion.showInventory', async () => {
-      const { usages } = await runScanAndReport();
+      const { usages } = await runScanAndReport(context);
       showInventory(usages);
     }),
   );
