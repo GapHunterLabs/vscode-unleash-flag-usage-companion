@@ -2,7 +2,7 @@
   "name": "unleash-flag-usage-companion",
   "displayName": "Unleash Flag Usage Companion",
   "description": "Inventories Unleash feature flag usage across your codebase -- naming check, find-all-usages, stale-looking flags. No data leaves your editor.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "GapHunterLabs",
   "icon": "images/icon.png",
   "license": "Apache-2.0",
